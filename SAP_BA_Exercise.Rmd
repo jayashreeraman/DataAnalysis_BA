@@ -1,0 +1,419 @@
+---
+title: "An Analysis of SAP Concur Expenditure for 2018 (Dummy Data)"
+author: "Jayashree Raman"
+date: "March 6, 2019"
+output: 
+  html_document:
+    toc: true
+
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(xlsx)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(reshape2)
+library(kableExtra)
+library(gridExtra)
+library(RColorBrewer)
+# library(cowplot)
+```
+
+
+
+```{r echo=FALSE}
+# df <- read.xlsx('BA Candidate Data Analysis Exercise.xlsx', sheetIndex = 1)
+df <- read.xlsx('SAP_BA_Data_Analysis_Exercise.xlsx', sheetIndex = 1)
+
+df_copy <- df
+```
+
+
+# Computing Percentage Mileage Spend each Quarter
+```{r echo=FALSE}
+# quarterly_spend <- df
+
+df$Q1_2018_Perc_Mil_Spend <- (df$Q1_2018_Mileage_Spend/df$Q1_2018_Total_Spend)*100
+df$Q2_2018_Perc_Mil_Spend <- (df$Q2_2018_Mileage_Spend/df$Q2_2018_Total_Spend)*100
+df$Q3_2018_Perc_Mil_Spend <- (df$Q3_2018_Mileage_Spend/df$Q3_2018_Total_Spend)*100
+df$Q4_2018_Perc_Mil_Spend <- (df$Q4_2018_Mileage_Spend/df$Q4_2018_Total_Spend)*100
+
+# Computing Average and Total Mileage Spend for 2018
+df$mileageSpend_2018 <- (df$Q1_2018_Mileage_Spend + df$Q2_2018_Mileage_Spend+df$Q3_2018_Mileage_Spend + df$Q4_2018_Mileage_Spend)
+
+df$totalSpend_2018 <- (df$Q1_2018_Total_Spend + df$Q2_2018_Total_Spend +df$Q3_2018_Total_Spend + df$Q4_2018_Total_Spend)
+
+
+df$actual_percentage_spend <- df$mileageSpend_2018/df$totalSpend_2018
+
+df$diff_in_perc_spend <- df$actual_percentage_spend - df$Percentage_Spend
+
+# Splitting total spend and vertical-based spend into two dataframes
+total_concur_spend <- df %>% filter(Verticals.Industry=='Concur ENT')
+
+quarterly_spend <- df  %>% filter(Verticals.Industry !='Concur ENT')
+
+```
+
+## Analysis for Total Concur Spend
+
+### Total Mileage Expenditure by Concur ENT
+```{r echo=FALSE}
+
+tcp_mileage <- gather(total_concur_spend, "Quarters", value="SpendValue", Q1_2018_Total_Spend :Q4_2018_Mileage_Spend, -'Verticals.Industry' )  %>% filter(Quarters %in% c("Q1_2018_Mileage_Spend", "Q2_2018_Mileage_Spend", "Q3_2018_Mileage_Spend",  "Q4_2018_Mileage_Spend")) %>% select(Quarters, SpendValue)
+
+kable(tcp_mileage)
+
+```
+
+
+### Overall Total Expenditure by Concur ENT
+
+```{r echo=FALSE}
+tcp_total <- gather(total_concur_spend, "Quarters", value="SpendValue", Q1_2018_Total_Spend :Q4_2018_Mileage_Spend, -'Verticals.Industry' ) %>% filter(Quarters %in% c("Q1_2018_Total_Spend", "Q2_2018_Total_Spend", "Q3_2018_Total_Spend",  "Q4_2018_Total_Spend")) %>% select(Quarters, SpendValue)
+
+kable(tcp_total)
+# tcp <- spread(tcp, Quarters, SpendValue)
+
+```
+
+```{r echo=FALSE}
+
+
+p1 <- ggplot(tcp_mileage, aes(Quarters)) + 
+  geom_bar(aes(y = SpendValue, fill=Quarters), stat = "identity", position="stack") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+p2 <- ggplot(tcp_total, aes(Quarters)) + 
+  geom_bar(aes(y = SpendValue, fill=Quarters), stat = "identity", position="stack") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+grid.arrange(p1, p2, ncol=2)
+
+```
+
+## Trend of Mileage Spend as a percentage of Total Spend for Concur ENT, Quarter on Quarter (QoQ)  
+
+```{r echo=FALSE}
+
+
+qsp <- total_concur_spend %>% select(Verticals.Industry, Q1_2018_Perc_Mil_Spend, Q2_2018_Perc_Mil_Spend, Q3_2018_Perc_Mil_Spend, Q4_2018_Perc_Mil_Spend)
+
+qsp <- gather(qsp, "Quarters", value="PercentChange", Q1_2018_Perc_Mil_Spend :Q4_2018_Perc_Mil_Spend, -'Verticals.Industry' )
+
+mdf <- melt(qsp, id.vars="Verticals.Industry", value.name="value", variable.name="Quarter")
+
+
+
+ggplot(data=qsp, aes(x=Quarters, y=PercentChange, group = 1)) +
+    geom_line() +
+    geom_point( size=4, shape=21, fill="white") + 
+    geom_bar(stat="identity", alpha=0.5, fill="blue4")
+
+
+```
+
+
+### Mileage Spend Trend for Each Vertical in 2018 (Aggregate/Average)
+
+> The average percentage change has been calculated by taking the sum of the differences between the percentage shares for each quarter, and dividing the sum by 3.  
+
+```{r echo=FALSE}
+
+data <- quarterly_spend %>% select(Verticals.Industry, Q1_2018_Perc_Mil_Spend, Q2_2018_Perc_Mil_Spend,Q3_2018_Perc_Mil_Spend, Q4_2018_Perc_Mil_Spend)
+
+data$avg_perc_change_2018 <- ((data$Q2_2018_Perc_Mil_Spend - data$Q1_2018_Perc_Mil_Spend) +
+                                (data$Q3_2018_Perc_Mil_Spend - data$Q2_2018_Perc_Mil_Spend) +
+                                (data$Q4_2018_Perc_Mil_Spend - data$Q3_2018_Perc_Mil_Spend))/3
+
+colnames(data) <- c("Vertical", "Q1 %MileageSpend", "Q2 %MileageSpend", "Q3 %MileageSpend", "Q4 %MileageSpend", "Avg_PercentMileageSpend_2018")
+kable(data)
+
+ggplot(data) + geom_bar(aes(x=Vertical, y=Avg_PercentMileageSpend_2018), stat='identity', fill="maroon")+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+## Quality Check for Percentage Spend Column
+```{r echo=FALSE}
+
+diff_in_perc_spend <- df %>% select(Verticals.Industry ,Percentage_Spend, actual_percentage_spend, diff_in_perc_spend)
+
+kable(diff_in_perc_spend)
+
+```
+
+> We observe that there are very minute differences in the reported and actual percentage spends for each Vertical. While these may be small enough by themselves, **it makes a significant impact on the expense statement, since the amount spent is in billions/trillions.**
+
+
+# Trends in Mileage Spending vs Total Spending, by Vertical
+
+### Change in Mileage Spending, and Distribution of Mileage Spending, by Vertical
+
+```{r echo=FALSE}
+
+qsp <- quarterly_spend %>% select(Verticals.Industry, Q1_2018_Mileage_Spend, Q2_2018_Mileage_Spend, Q3_2018_Mileage_Spend, Q4_2018_Mileage_Spend)
+
+qsp <- gather(qsp, "Quarters", value="SpendValue", Q1_2018_Mileage_Spend :Q4_2018_Mileage_Spend, -'Verticals.Industry' ) %>% group_by("Verticals.Industry")
+
+## You need to expand palette size
+colourCount <- length(unique(qsp$Verticals.Industry)) # number of levels
+getPalette <- colorRampPalette(brewer.pal(8, "Accent"))
+
+ggplot(qsp, aes(Quarters)) + 
+  geom_bar(aes(y = SpendValue, colour = Verticals.Industry, fill=Verticals.Industry), stat = "identity") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_fill_manual(values = colorRampPalette(brewer.pal(8,"Accent"))(colourCount))  
+```
+
+> Thus, we observe that **Manufacturing, Financial Services, Healthcare Provider Services, Tech - Mnfg, S/W & Services, State and Local Governments and Life Sciences** are the verticals that account for a major chunk of the Mileage Expenditure.  
+> Also, the Total Mileage Spend was **highest in  Q2 for the year 2018, and was the least for Q1**  
+
+
+
+### Verticals, ordered by the Mileage Expenditure, for each quarter in 2018
+#### Trend in the Percentage Mileage Share of Total Expenditure, By Vertical, QoQ
+
+```{r echo=FALSE}
+
+qsp_cols <- list('Q1_2018_Mileage_Spend', 'Q2_2018_Mileage_Spend', 'Q3_2018_Mileage_Spend', 'Q4_2018_Mileage_Spend')
+
+x <- quarterly_spend %>% arrange(Q1_2018_Mileage_Spend) %>% select(Verticals.Industry, Q1_2018_Mileage_Spend, Q1_2018_Total_Spend)
+
+x$Verticals.Industry <- factor(x$Verticals.Industry, levels = x$Verticals.Industry[order(-x$Q1_2018_Mileage_Spend)])
+
+p1 <- ggplot(x, aes(x=Verticals.Industry, y=Q1_2018_Mileage_Spend)) + geom_bar(stat = "identity", position="stack", fill="blue") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# plot(p1)
+
+# Stacked Bar Plot
+
+y <- melt(x, id='Verticals.Industry')
+
+q1 <- ggplot(y) + geom_bar(aes(x=Verticals.Industry, y=value, fill=variable), stat='identity')+     theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+
+```{r echo=FALSE}
+
+
+x <- quarterly_spend %>% arrange(Q2_2018_Mileage_Spend) %>% select(Verticals.Industry, Q2_2018_Mileage_Spend, Q2_2018_Total_Spend)
+
+x$Verticals.Industry <- factor(x$Verticals.Industry, levels = x$Verticals.Industry[order(-x$Q2_2018_Mileage_Spend)])
+
+p2 <- ggplot(x, aes(x=Verticals.Industry, y=Q2_2018_Mileage_Spend)) + geom_bar(stat = "identity", position="stack", fill="blue") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# plot(p1)
+
+# Stacked Bar Plot
+
+y <- melt(x, id='Verticals.Industry')
+
+q2 <- ggplot(y) + geom_bar(aes(x=Verticals.Industry, y=value, fill=variable), stat='identity')+     theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+```{r echo=FALSE}
+
+z <- y %>% filter(Verticals.Industry != "Manufacturing")
+
+q2_1 <- ggplot(z) + geom_bar(aes(x=Verticals.Industry, y=value, fill=variable), stat='identity')+     theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+
+```{r echo=FALSE}
+
+
+x <- quarterly_spend %>% arrange(Q3_2018_Mileage_Spend) %>% select(Verticals.Industry, Q3_2018_Mileage_Spend, Q3_2018_Total_Spend)
+
+x$Verticals.Industry <- factor(x$Verticals.Industry, levels = x$Verticals.Industry[order(-x$Q3_2018_Mileage_Spend)])
+
+p3 <- ggplot(x, aes(x=Verticals.Industry, y=Q3_2018_Mileage_Spend)) + geom_bar(stat = "identity", position="stack", fill="blue") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# plot(p1)
+
+# Stacked Bar Plot
+
+y <- melt(x, id='Verticals.Industry')
+
+q3 <- ggplot(y) + geom_bar(aes(x=Verticals.Industry, y=value, fill=variable), stat='identity')+     theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+```
+
+```{r echo=FALSE}
+
+
+x <- quarterly_spend %>% arrange(Q4_2018_Mileage_Spend) %>% select(Verticals.Industry, Q4_2018_Mileage_Spend, Q4_2018_Total_Spend)
+
+x$Verticals.Industry <- factor(x$Verticals.Industry, levels = x$Verticals.Industry[order(-x$Q4_2018_Mileage_Spend)])
+
+p4 <- ggplot(x, aes(x=Verticals.Industry, y=Q4_2018_Mileage_Spend)) + geom_bar(stat = "identity", position="stack", fill="blue") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# plot(p1)
+
+# Stacked Bar Plot
+
+y <- melt(x, id='Verticals.Industry')
+
+q4 <- ggplot(y) + geom_bar(aes(x=Verticals.Industry, y=value, fill=variable), stat='identity')+     theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+<!-- ### Vertical share/rankings on Mileage Spending, QoQ -->
+```{r echo=FALSE}
+
+grid.arrange(p1, p2, ncol=2)
+
+grid.arrange(p3, p4, ncol=2)
+
+```
+
+> Key Observations:  
+- Manufacturing has the highest mileage spend in every quarter  
+- It is followed by Financial Services, except in Q3, when Healthcare Provider Services take over the second place  
+- Healthcare Provider Services and Life Services Spending on mileage undergo a huge jump from Q2 to Q3  
+- Construction and Membership Orgs and Unions have the lowest Mileage spend in all four quarters of 2018  
+- For the remaining verticals, the average spend on mileage remains more or less in the same range  
+
+
+### Mileage Spend, as a percentage of Total Spend, By Vertical, QoQ
+
+
+#### Q1 - 2018
+```{r echo=FALSE}
+plot(q1)
+
+# data <- quarterly_spend %>% select(Verticals.Industry, Q1_2018_Perc_Mil_Spend)
+# kable(data)
+```
+
+> Key Observations:
+- We see that Life Sciences has the highest total expenditure, but in terms of mileage spending it is ranked 5th  
+- Manufacturing has the second highest Total Expenditure, and highest Mileage Expenditure  
+- An important point to note is that Healthcare Provider Services have a significantly small Total Expenditure, but high Mileage Expenditure (7%)   
+- The highest percentage share of Mileage Expenditure to Total Expenditure is for the State & Local Governments, a whopping 14%   
+
+#### Q2 - 2018
+```{r echo=FALSE}
+plot(q2)
+
+```
+
+>Key Observations:  
+- On an inital glance, we see Manufacturing take over all other verticals in terms of Total Expenditure, and hence we cannot see the Mileage Spend of the other verticals in the plot at all  
+- We can remove Manufacturing from the set for the time being, and look at other verticals  
+
+```{r echo=FALSE}
+plot(q2_1)
+
+
+# data <- quarterly_spend %>% select(Verticals.Industry, Q2_2018_Perc_Mil_Spend)
+# kable(data)
+```
+
+> Key Observations:   
+- The bars are ordered according to the Mileage Spends, so we  see that Financial Services is second, Healthcare is third, and so on   
+- The State and Local Government's Mileage Spend is down to 12% of their Total Spend, while for Healthcare Services it is up to 11% from 7%   
+- Even though the Total Expenditure of Manufacturing increased by over 40 times, its Mileage Spend remained more or less constant. Hence, the percentage share of Mileage Spend is extremely small for Manufacturing, the expenditure analysis would have to take in other factors to account for the increase in spend  
+
+#### Q3 - 2018
+```{r echo=FALSE}
+plot(q3)
+
+
+# data <- quarterly_spend %>% select(Verticals.Industry, Q3_2018_Perc_Mil_Spend)
+# kable(data)
+
+```
+
+> Key observations:  
+- The pattern pretty much remains the same, except for the following--  
+- The __Total Expenditure for Life Sciences falls by a significant amount, but it still ranks 4th in terms of Mileage Spend__  
+- Manufacturing again sees the **highest Total Spend, and highest Mileage Spend**   
+- Healthcare Provider Services see a jump in Mileage Spend from 11% to 17%, putting them in the second position for Mileage Spend (**could be anomalies in the data/system, or fraudulent claims submitted**)  
+-State & Local Government Expenditure on Mileage see a fall from **12% to 8.5%**
+
+
+#### Q4 - 2018
+```{r echo=FALSE}
+plot(q4)
+# 
+
+# y <- melt(x, id='Verticals.Industry')
+# 
+# ggplot(y) + geom_bar(aes(x=Verticals.Industry, y=value, fill=variable), stat='identity')+     theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+> Key Observations:  
+- State & Local Govt Mileage Spend goes up by 1%  
+- Healthcare Provider Services see a reduction in % Mileage Spend from 17% to 10%  
+
+
+### Line Chart depicting the trends of Mileage Spend Percentages for each Vertical
+
+```{r echo=FALSE}
+
+qsp <- quarterly_spend %>% select(Verticals.Industry, Q1_2018_Perc_Mil_Spend, Q2_2018_Perc_Mil_Spend, Q3_2018_Perc_Mil_Spend, Q4_2018_Perc_Mil_Spend)
+
+qsp <- gather(qsp, "Quarters", value="PercentChange", Q1_2018_Perc_Mil_Spend :Q4_2018_Perc_Mil_Spend, -'Verticals.Industry' ) %>% group_by("Verticals.Industry")
+
+# mdf <- melt(qsp, id.vars="Verticals.Industry", value.name="PercentChange", variable.name="Quarter")
+
+mileage_line_plot <- ggplot(qsp, aes(Quarters)) + 
+  geom_line(aes(y = PercentChange, colour = Verticals.Industry, group=Verticals.Industry)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))  +
+   scale_colour_discrete(guide = FALSE) 
+
+plot(mileage_line_plot)
+
+# # Extract the legend. Returns a gtable
+# leg <- get_legend(mileage_line_plot)
+# 
+# # Convert to a ggplot and print
+# as_ggplot(leg)
+
+
+ggplot(qsp, aes(Quarters)) +
+  geom_line(aes(y = PercentChange, colour = Verticals.Industry, group=Verticals.Industry)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+> The trend lines plot confirms our insights observed in the QoQ plots, namely:  
+-  Healthcare Provider services see the sharpest/highest percentage change in Mileage spend, 
+-  The Manufacturing trend line hits bottom rock in Q2  
+-  State and Local Government vertical starts at a high share, but dips steadily till Q3, and rises slightly in Q4  
+
+
+
+
+### Summary Table
+> The average percentage change has been calculated by taking the sum of the differences between the percentage shares for each quarter, and dividing the sum by 3.    
+
+```{r echo=FALSE}
+
+data <- quarterly_spend %>% select(Verticals.Industry, Q1_2018_Perc_Mil_Spend, Q2_2018_Perc_Mil_Spend,Q3_2018_Perc_Mil_Spend, Q4_2018_Perc_Mil_Spend)
+
+data$avg_perc_change_2018 <- ((data$Q2_2018_Perc_Mil_Spend - data$Q1_2018_Perc_Mil_Spend) +
+                                (data$Q3_2018_Perc_Mil_Spend - data$Q2_2018_Perc_Mil_Spend) +
+                                (data$Q4_2018_Perc_Mil_Spend - data$Q3_2018_Perc_Mil_Spend))/3
+
+colnames(data) <- c("Vertical", "Q1 %MileageSpend", "Q2 %MileageSpend", "Q3 %MileageSpend", "Q4 %MileageSpend", "Avg_PercentMileageSpend_2018")
+kable(data)
+
+ggplot(data) + geom_bar(aes(x=Vertical, y=Avg_PercentMileageSpend_2018), stat='identity', fill="maroon")+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+> The above plot gives us a great insight as to how the Mileage Spend fell or rose in 2018, based on Industry Vertical. This can be a great way for SAP Concur to assess which industries/verticals are most profitable, and how to optimize the mileage spends for verticals that are not.   
+
+> Other things remaining the same, these can also be used as trends in these verticals, to predict what the mileage expenditure for 2019 could be like.  
